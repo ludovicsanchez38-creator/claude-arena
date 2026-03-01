@@ -6,7 +6,6 @@ import { EditorToolbar } from './office/editor/EditorToolbar.js'
 import { EditorState } from './office/editor/editorState.js'
 import { EditTool } from './office/types.js'
 import { isRotatable } from './office/layout/furnitureCatalog.js'
-import { vscode } from './vscodeApi.js'
 import { useExtensionMessages } from './hooks/useExtensionMessages.js'
 import { PULSE_ANIMATION_DURATION_SEC } from './constants.js'
 import { useEditorActions } from './hooks/useEditorActions.js'
@@ -127,8 +126,8 @@ function App() {
 
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), [])
 
-  const handleSelectAgent = useCallback((id: number) => {
-    vscode.postMessage({ type: 'focusAgent', id })
+  const handleSelectAgent = useCallback((_id: number) => {
+    // In standalone mode, no terminal to focus
   }, [])
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -146,16 +145,12 @@ function App() {
     editor.handleToggleEditMode,
   )
 
-  const handleCloseAgent = useCallback((id: number) => {
-    vscode.postMessage({ type: 'closeAgent', id })
+  const handleCloseAgent = useCallback((_id: number) => {
+    // In standalone mode, no terminal to close
   }, [])
 
-  const handleClick = useCallback((agentId: number) => {
-    // If clicked agent is a sub-agent, focus the parent's terminal instead
-    const os = getOfficeState()
-    const meta = os.subagentMeta.get(agentId)
-    const focusId = meta ? meta.parentAgentId : agentId
-    vscode.postMessage({ type: 'focusAgent', id: focusId })
+  const handleClick = useCallback((_agentId: number) => {
+    // In standalone mode, just select the agent visually
   }, [])
 
   const officeState = getOfficeState()
@@ -177,8 +172,14 @@ function App() {
 
   if (!layoutReady) {
     return (
-      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--vscode-foreground)' }}>
-        Loading...
+      <div style={{
+        width: '100%', height: '100%',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexDirection: 'column', gap: 16,
+        background: '#0B1226', color: '#E6EDF7',
+      }}>
+        <div style={{ fontSize: '32px', letterSpacing: '4px' }}>CLAUDE ARENA</div>
+        <div style={{ fontSize: '18px', opacity: 0.6 }}>Loading...</div>
       </div>
     )
   }
@@ -192,6 +193,23 @@ function App() {
         }
         .pixel-agents-pulse { animation: pixel-agents-pulse ${PULSE_ANIMATION_DURATION_SEC}s ease-in-out infinite; }
       `}</style>
+
+      {/* Header CLAUDE ARENA */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 8,
+          right: 10,
+          zIndex: 'var(--pixel-controls-z)',
+          fontSize: '16px',
+          letterSpacing: '3px',
+          color: 'rgba(255, 255, 255, 0.35)',
+          pointerEvents: 'none',
+          textTransform: 'uppercase',
+        }}
+      >
+        CLAUDE ARENA
+      </div>
 
       <OfficeCanvas
         officeState={officeState}
@@ -225,7 +243,6 @@ function App() {
 
       <BottomToolbar
         isEditMode={editor.isEditMode}
-        onOpenClaude={editor.handleOpenClaude}
         onToggleEditMode={editor.handleToggleEditMode}
         isDebugMode={isDebugMode}
         onToggleDebugMode={handleToggleDebugMode}

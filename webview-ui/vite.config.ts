@@ -8,4 +8,13 @@ export default defineConfig({
     emptyOutDir: true,
   },
   base: './',
+  server: {
+    port: 5173,
+    proxy: {
+      '/ws': {
+        target: 'ws://localhost:3847',
+        ws: true,
+      },
+    },
+  },
 })

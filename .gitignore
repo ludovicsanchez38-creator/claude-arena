@@ -1,5 +1,6 @@
 out
 dist
+dist-server
 node_modules
 .vscode-test/
 *.vsix
@@ -7,3 +8,5 @@ node_modules
 /logs
 /sprites-export
 .env
+.playwright-mcp/
+*.png.tmp

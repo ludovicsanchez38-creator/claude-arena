@@ -8,6 +8,10 @@ interface BottomToolbarProps {
   isDebugMode: boolean
   onToggleDebugMode: () => void
   workspaceFolders: WorkspaceFolder[]
+  isInfoPanelOpen: boolean
+  onToggleInfoPanel: () => void
+  themeId: string
+  onThemeChange: (id: string) => void
 }
 
 const panelStyle: React.CSSProperties = {
@@ -47,6 +51,10 @@ export function BottomToolbar({
   onToggleEditMode,
   isDebugMode,
   onToggleDebugMode,
+  isInfoPanelOpen,
+  onToggleInfoPanel,
+  themeId,
+  onThemeChange,
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -91,8 +99,26 @@ export function BottomToolbar({
           onClose={() => setIsSettingsOpen(false)}
           isDebugMode={isDebugMode}
           onToggleDebugMode={onToggleDebugMode}
+          themeId={themeId}
+          onThemeChange={onThemeChange}
         />
       </div>
+      <button
+        onClick={onToggleInfoPanel}
+        onMouseEnter={() => setHovered('info')}
+        onMouseLeave={() => setHovered(null)}
+        style={
+          isInfoPanelOpen
+            ? { ...btnActive }
+            : {
+                ...btnBase,
+                background: hovered === 'info' ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
+              }
+        }
+        title="Hooks, Skills & Commands"
+      >
+        Info
+      </button>
     </div>
   )
 }

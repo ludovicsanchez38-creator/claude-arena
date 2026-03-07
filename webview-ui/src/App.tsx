@@ -13,6 +13,8 @@ import { useEditorKeyboard } from './hooks/useEditorKeyboard.js'
 import { ZoomControls } from './components/ZoomControls.js'
 import { BottomToolbar } from './components/BottomToolbar.js'
 import { DebugView } from './components/DebugView.js'
+import { InfoPanel } from './components/InfoPanel.js'
+import { DEFAULT_THEME_ID } from './office/engine/themes/index.js'
 
 // Game state lives outside React — updated imperatively by message handlers
 const officeStateRef = { current: null as OfficeState | null }
@@ -120,11 +122,18 @@ function App() {
 
   const isEditDirty = useCallback(() => editor.isEditMode && editor.isDirty, [editor.isEditMode, editor.isDirty])
 
-  const { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
+  const { agents, selectedAgent, agentTools, agentStatuses, agentProjectNames, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, claudeMeta } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
 
   const [isDebugMode, setIsDebugMode] = useState(false)
+  const [isInfoPanelOpen, setIsInfoPanelOpen] = useState(false)
+  const [themeId, setThemeId] = useState(() => localStorage.getItem('claude-arena-theme') || DEFAULT_THEME_ID)
 
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), [])
+  const handleToggleInfoPanel = useCallback(() => setIsInfoPanelOpen((prev) => !prev), [])
+  const handleThemeChange = useCallback((id: string) => {
+    setThemeId(id)
+    localStorage.setItem('claude-arena-theme', id)
+  }, [])
 
   const handleSelectAgent = useCallback((_id: number) => {
     // In standalone mode, no terminal to focus
@@ -226,6 +235,7 @@ function App() {
         zoom={editor.zoom}
         onZoomChange={editor.handleZoomChange}
         panRef={editor.panRef}
+        themeId={themeId}
       />
 
       <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />
@@ -247,6 +257,10 @@ function App() {
         isDebugMode={isDebugMode}
         onToggleDebugMode={handleToggleDebugMode}
         workspaceFolders={workspaceFolders}
+        isInfoPanelOpen={isInfoPanelOpen}
+        onToggleInfoPanel={handleToggleInfoPanel}
+        themeId={themeId}
+        onThemeChange={handleThemeChange}
       />
 
       {editor.isEditMode && editor.isDirty && (
@@ -311,6 +325,16 @@ function App() {
         zoom={editor.zoom}
         panRef={editor.panRef}
         onCloseAgent={handleCloseAgent}
+      />
+
+      <InfoPanel
+        isOpen={isInfoPanelOpen}
+        onClose={() => setIsInfoPanelOpen(false)}
+        claudeMeta={claudeMeta}
+        sessions={agents}
+        sessionStatuses={agentStatuses}
+        sessionTools={agentTools}
+        sessionNames={agentProjectNames}
       />
 
       {isDebugMode && (

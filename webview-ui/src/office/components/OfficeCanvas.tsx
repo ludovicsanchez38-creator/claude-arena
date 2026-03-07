@@ -1,9 +1,11 @@
 import { useRef, useEffect, useCallback } from 'react'
 import type { OfficeState } from '../engine/officeState.js'
 import type { EditorState } from '../editor/editorState.js'
-import type { EditorRenderState, SelectionRenderState, DeleteButtonBounds, RotateButtonBounds } from '../engine/renderer.js'
+import type { EditorRenderState, DeleteButtonBounds, RotateButtonBounds } from '../engine/renderer.js'
+import { renderGridOverlay, renderGhostBorder, renderGhostPreview, renderSelectionHighlight, renderDeleteButton, renderRotateButton } from '../engine/renderer.js'
 import { startGameLoop } from '../engine/gameLoop.js'
-import { renderFrame } from '../engine/renderer.js'
+import { getTheme } from '../engine/themes/index.js'
+import type { SceneState } from '../engine/themes/index.js'
 import { TILE_SIZE, EditTool } from '../types.js'
 import { CAMERA_FOLLOW_LERP, CAMERA_FOLLOW_SNAP_THRESHOLD, ZOOM_MIN, ZOOM_MAX, ZOOM_SCROLL_THRESHOLD, PAN_MARGIN_FRACTION } from '../../constants.js'
 import { getCatalogEntry, isRotatable } from '../layout/furnitureCatalog.js'
@@ -26,9 +28,10 @@ interface OfficeCanvasProps {
   zoom: number
   onZoomChange: (zoom: number) => void
   panRef: React.MutableRefObject<{ x: number; y: number }>
+  themeId: string
 }
 
-export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, onEditorTileAction, onEditorEraseAction, onEditorSelectionChange, onDeleteSelected, onRotateSelected, onDragMove, editorTick: _editorTick, zoom, onZoomChange, panRef }: OfficeCanvasProps) {
+export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, onEditorTileAction, onEditorEraseAction, onEditorSelectionChange, onDeleteSelected, onRotateSelected, onDragMove, editorTick: _editorTick, zoom, onZoomChange, panRef, themeId }: OfficeCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const offsetRef = useRef({ x: 0, y: 0 })
@@ -194,32 +197,56 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
           }
         }
 
-        // Build selection render state
-        const selectionRender: SelectionRenderState = {
+        // Build scene state for theme rendering
+        const sceneState: SceneState = {
+          tileMap: officeState.tileMap,
+          furniture: officeState.furniture,
+          characters: officeState.getCharacters(),
+          zoom,
+          panX: panRef.current.x,
+          panY: panRef.current.y,
+          tileColors: officeState.getLayout().tileColors,
+          layoutCols: officeState.getLayout().cols,
+          layoutRows: officeState.getLayout().rows,
           selectedAgentId: officeState.selectedAgentId,
           hoveredAgentId: officeState.hoveredAgentId,
           hoveredTile: officeState.hoveredTile,
           seats: officeState.seats,
-          characters: officeState.characters,
+          characterMap: officeState.characters,
         }
 
-        const { offsetX, offsetY } = renderFrame(
-          ctx,
-          w,
-          h,
-          officeState.tileMap,
-          officeState.furniture,
-          officeState.getCharacters(),
-          zoom,
-          panRef.current.x,
-          panRef.current.y,
-          selectionRender,
-          editorRender,
-          officeState.getLayout().tileColors,
-          officeState.getLayout().cols,
-          officeState.getLayout().rows,
-        )
+        // Render scene via theme
+        const theme = getTheme(themeId)
+        const { offsetX, offsetY } = theme.renderFrame(ctx, w, h, sceneState)
         offsetRef.current = { x: offsetX, y: offsetY }
+
+        // Editor overlays (shared across all themes)
+        if (editorRender) {
+          const layout = officeState.getLayout()
+          const cols = layout.cols
+          const rows = layout.rows
+          if (editorRender.showGrid) {
+            renderGridOverlay(ctx, offsetX, offsetY, zoom, cols, rows, officeState.tileMap)
+          }
+          if (editorRender.showGhostBorder) {
+            renderGhostBorder(ctx, offsetX, offsetY, zoom, cols, rows, editorRender.ghostBorderHoverCol, editorRender.ghostBorderHoverRow)
+          }
+          if (editorRender.ghostSprite && editorRender.ghostCol >= 0) {
+            renderGhostPreview(ctx, editorRender.ghostSprite, editorRender.ghostCol, editorRender.ghostRow, editorRender.ghostValid, offsetX, offsetY, zoom)
+          }
+          if (editorRender.hasSelection) {
+            renderSelectionHighlight(ctx, editorRender.selectedCol, editorRender.selectedRow, editorRender.selectedW, editorRender.selectedH, offsetX, offsetY, zoom)
+            editorRender.deleteButtonBounds = renderDeleteButton(ctx, editorRender.selectedCol, editorRender.selectedRow, editorRender.selectedW, editorRender.selectedH, offsetX, offsetY, zoom)
+            if (editorRender.isRotatable) {
+              editorRender.rotateButtonBounds = renderRotateButton(ctx, editorRender.selectedCol, editorRender.selectedRow, editorRender.selectedW, editorRender.selectedH, offsetX, offsetY, zoom)
+            } else {
+              editorRender.rotateButtonBounds = null
+            }
+          } else {
+            editorRender.deleteButtonBounds = null
+            editorRender.rotateButtonBounds = null
+          }
+        }
 
         // Store delete/rotate button bounds for hit-testing
         deleteButtonBoundsRef.current = editorRender?.deleteButtonBounds ?? null
@@ -231,7 +258,7 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
       stop()
       observer.disconnect()
     }
-  }, [officeState, resizeCanvas, isEditMode, editorState, _editorTick, zoom, panRef])
+  }, [officeState, resizeCanvas, isEditMode, editorState, _editorTick, zoom, panRef, themeId])
 
   // Convert CSS mouse coords to world (sprite pixel) coords
   const screenToWorld = useCallback(

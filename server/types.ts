@@ -20,9 +20,9 @@ export interface AgentState {
 
 // Messages envoyés du serveur vers le frontend via WebSocket
 export type ServerMessage =
-  | { type: 'agentCreated'; id: number }
+  | { type: 'agentCreated'; id: number; projectName?: string }
   | { type: 'agentClosed'; id: number }
-  | { type: 'existingAgents'; agents: number[] }
+  | { type: 'existingAgents'; agents: number[]; projectNames?: Record<number, string> }
   | { type: 'agentToolStart'; id: number; toolId: string; status: string }
   | { type: 'agentToolDone'; id: number; toolId: string }
   | { type: 'agentToolsClear'; id: number }
@@ -39,11 +39,69 @@ export type ServerMessage =
   | { type: 'furnitureAssetsLoaded'; catalog: FurnitureAssetMeta[]; sprites: Record<string, string[][]> }
   | { type: 'layoutLoaded'; layout: Record<string, unknown> | null }
   | { type: 'settingsLoaded'; soundEnabled: boolean }
+  | { type: 'claudeMetaLoaded'; hooks: PluginHooks[]; commands: CommandDefinition[]; skills: SkillDefinition[]; infrastructure: Infrastructure }
 
 export interface CharacterDirectionSprites {
   down: string[][][]
   up: string[][][]
   right: string[][][]
+}
+
+// ── Claude Meta (hooks, skills, commands) ───────────────────
+
+export interface HookDefinition {
+  event: string
+  matcher: string
+  command: string
+  async: boolean
+}
+
+export interface PluginHooks {
+  pluginName: string
+  hooks: HookDefinition[]
+}
+
+export interface CommandDefinition {
+  name: string
+  description: string
+}
+
+export interface SkillDefinition {
+  name: string
+  description: string
+}
+
+// ── Infrastructure (agents, services, crons) ────────────────
+
+export interface InfraAgent {
+  name: string
+  host: string
+  ip: string
+  model: string | null
+  channels: string[]
+  workspace: string
+  status: string
+}
+
+export interface InfraService {
+  name: string
+  host: string
+  ip: string
+  type: string
+  description: string
+}
+
+export interface InfraCron {
+  schedule: string
+  command: string
+  host: string
+  description: string
+}
+
+export interface Infrastructure {
+  agents: InfraAgent[]
+  services: InfraService[]
+  crons: InfraCron[]
 }
 
 export interface FurnitureAssetMeta {

@@ -12,6 +12,24 @@ import {
 } from './timerManager.js'
 import { SCAN_INTERVAL_MS, JSONL_STALE_THRESHOLD_MS } from './constants.js'
 
+const SESSION_NAMES_FILE = path.join(os.homedir(), '.claude-arena', 'session-names.json')
+
+/** Load custom session name mapping (slug or sessionId → display name) */
+function loadSessionNames(): Record<string, string> {
+  try {
+    if (fs.existsSync(SESSION_NAMES_FILE)) {
+      const raw = JSON.parse(fs.readFileSync(SESSION_NAMES_FILE, 'utf-8'))
+      const result: Record<string, string> = {}
+      for (const [k, v] of Object.entries(raw)) {
+        if (k.startsWith('_') || typeof v !== 'string') continue
+        result[k] = v
+      }
+      return result
+    }
+  } catch { /* ignore */ }
+  return {}
+}
+
 // Claude Code project dir: ~/.claude/projects/<project-hash>/
 // Project hash = workspace path with :/\ → -
 function getClaudeProjectsDir(): string {
@@ -32,6 +50,100 @@ export function getAgents(): Map<number, AgentState> {
 
 export function getActiveAgentIds(): number[] {
   return [...agents.keys()]
+}
+
+/** Extract a human-readable project name from the project hash directory.
+ *  Hash format: path with / replaced by -, e.g. "-Users-synoptia-Desktop-Dev-claude-arena" */
+function projectNameFromHash(hash: string): string {
+  const segments = hash.split('-').filter(Boolean)
+  if (segments.length === 0) return '/'
+  // Remove "Users-<username>" prefix if present
+  const homeUser = os.userInfo().username
+  let idx = 0
+  if (segments[0] === 'Users' && segments[1] === homeUser) idx = 2
+  const rest = segments.slice(idx)
+  if (rest.length === 0) return '~'
+  // Return last 2 meaningful segments joined
+  // e.g., "Desktop-Dev-Synoptia-claude-arena" → "claude-arena"
+  // e.g., "Desktop-Docs-officiels-ARTICLE" → "ARTICLE"
+  return rest.slice(-1)[0] || '~'
+}
+
+/** Extract a readable session name from JSONL.
+ *  Priority: 1) session-names.json mapping, 2) cwd, 3) slug humanized, 4) hash */
+function extractSessionName(jsonlFile: string, projectDir: string): string {
+  const homeDir = os.homedir()
+  const nameMap = loadSessionNames()
+
+  try {
+    const fd = fs.openSync(jsonlFile, 'r')
+    const fstat = fs.fstatSync(fd)
+    const readSize = Math.min(fstat.size, 10000)
+    const buf = Buffer.alloc(readSize)
+    fs.readSync(fd, buf, 0, readSize, Math.max(0, fstat.size - readSize))
+    fs.closeSync(fd)
+    const text = buf.toString('utf-8')
+
+    // 0. Try custom name mapping (slug or sessionId → name from session-names.json)
+    const slugMatches = text.match(/"slug":"([^"]+)"/g)
+    let slug = ''
+    if (slugMatches && slugMatches.length > 0) {
+      const lastSlug = slugMatches[slugMatches.length - 1].match(/"slug":"([^"]+)"/)
+      if (lastSlug) slug = lastSlug[1]
+    }
+    if (slug && nameMap[slug]) {
+      return nameMap[slug]
+    }
+    // Also try sessionId mapping (for sessions without slug)
+    const sidMatch = text.match(/"sessionId":"([^"]+)"/)
+    const sessionId = sidMatch ? sidMatch[1] : ''
+    if (sessionId && nameMap[sessionId]) {
+      return nameMap[sessionId]
+    }
+    // Also try JSONL filename (UUID) as key
+    const fileUuid = path.basename(jsonlFile, '.jsonl')
+    if (nameMap[fileUuid]) {
+      return nameMap[fileUuid]
+    }
+
+    // 1. Try cwd - most meaningful for project-based sessions
+    const cwdMatches = text.match(/"cwd":"([^"]+)"/g)
+    if (cwdMatches && cwdMatches.length > 0) {
+      const lastCwd = cwdMatches[cwdMatches.length - 1].match(/"cwd":"([^"]+)"/)
+      if (lastCwd) {
+        const cwd = lastCwd[1]
+        if (cwd !== homeDir && cwd.startsWith(homeDir + '/')) {
+          const rel = cwd.slice(homeDir.length + 1)
+          const parts = rel.split('/')
+          const skip = ['Desktop', 'Dev Synoptia', 'Documents', 'Docs officiels']
+          let start = 0
+          while (start < parts.length - 1 && skip.includes(parts[start])) start++
+          const meaningful = parts.slice(start)
+          return meaningful.length > 2 ? meaningful.slice(0, 2).join('/') : meaningful.join('/')
+        } else if (cwd !== homeDir) {
+          return path.basename(cwd)
+        }
+      }
+    }
+
+    // 2. Humanize slug
+    if (slug) {
+      return slug.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+    }
+  } catch {
+    // Ignore read errors
+  }
+
+  // 3. Fallback to project hash
+  return projectNameFromHash(path.basename(projectDir))
+}
+
+export function getAgentProjectNames(): Record<number, string> {
+  const result: Record<number, string> = {}
+  for (const [id, agent] of agents) {
+    result[id] = extractSessionName(agent.jsonlFile, agent.projectDir)
+  }
+  return result
 }
 
 export function startScanner(broadcastFn: BroadcastFn): void {
@@ -72,7 +184,7 @@ function scan(): void {
             const stat = fs.statSync(filePath)
             const age = now - stat.mtimeMs
 
-            if (age < JSONL_STALE_THRESHOLD_MS) {
+            if (age < JSONL_STALE_THRESHOLD_MS && stat.size > 1000) {
               activeJsonlFiles.add(filePath)
 
               if (!knownJsonlFiles.has(filePath)) {
@@ -129,8 +241,10 @@ function createAgent(jsonlFile: string, projectDir: string): void {
   agents.set(id, agent)
   knownJsonlFiles.set(jsonlFile, id)
 
-  console.log(`[Scanner] Agent ${id} created: ${path.basename(jsonlFile)}`)
-  broadcast({ type: 'agentCreated', id })
+  const projectName = extractSessionName(jsonlFile, projectDir)
+
+  console.log(`[Scanner] Agent ${id} created: ${path.basename(jsonlFile)} (${projectName})`)
+  broadcast({ type: 'agentCreated', id, projectName })
 
   // Read the file to determine current state
   // Only read last portion to get recent activity

@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import { vscode } from '../vscodeApi.js'
 import { isSoundEnabled, setSoundEnabled } from '../notificationSound.js'
+import { getAvailableThemes } from '../office/engine/themes/index.js'
 
 interface SettingsModalProps {
   isOpen: boolean
   onClose: () => void
   isDebugMode: boolean
   onToggleDebugMode: () => void
+  themeId: string
+  onThemeChange: (id: string) => void
 }
 
 const menuItemBase: React.CSSProperties = {
@@ -24,7 +27,7 @@ const menuItemBase: React.CSSProperties = {
   textAlign: 'left',
 }
 
-export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode }: SettingsModalProps) {
+export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode, themeId, onThemeChange }: SettingsModalProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled)
 
@@ -90,6 +93,37 @@ export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode 
           >
             X
           </button>
+        </div>
+        {/* Theme selector */}
+        <div
+          style={{
+            padding: '6px 10px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <span style={{ fontSize: '24px', color: 'rgba(255, 255, 255, 0.8)' }}>Theme</span>
+          <select
+            value={themeId}
+            onChange={(e) => onThemeChange(e.target.value)}
+            style={{
+              background: 'rgba(255, 255, 255, 0.1)',
+              color: 'rgba(255, 255, 255, 0.8)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              borderRadius: 0,
+              padding: '2px 6px',
+              fontSize: '20px',
+              cursor: 'pointer',
+              outline: 'none',
+            }}
+          >
+            {getAvailableThemes().map((t) => (
+              <option key={t.id} value={t.id} style={{ background: '#1a1a2e', color: '#E6EDF7' }}>
+                {t.name}
+              </option>
+            ))}
+          </select>
         </div>
         {/* Sound toggle */}
         <button

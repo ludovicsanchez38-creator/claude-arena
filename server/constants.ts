@@ -1,6 +1,6 @@
 // ── Timing (ms) ──────────────────────────────────────────────
 export const SCAN_INTERVAL_MS = 1500
-export const JSONL_STALE_THRESHOLD_MS = 120_000
+export const JSONL_STALE_THRESHOLD_MS = 1_800_000 // 30 min : garder les sessions inactives visibles
 export const TOOL_DONE_DELAY_MS = 300
 export const PERMISSION_TIMER_DELAY_MS = 7000
 export const TEXT_IDLE_DELAY_MS = 5000

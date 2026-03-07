@@ -5,7 +5,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import * as os from 'os'
 import type { ServerMessage } from './types.js'
-import { startScanner, getActiveAgentIds } from './scanner.js'
+import { startScanner, getActiveAgentIds, getAgentProjectNames } from './scanner.js'
 import {
   loadDefaultLayout,
   loadCharacterSprites,
@@ -14,6 +14,7 @@ import {
   loadFurnitureAssets,
 } from './assetLoader.js'
 import { PORT, LAYOUT_FILE_DIR, LAYOUT_FILE_NAME } from './constants.js'
+import { startMetaScanner, getClaudeMeta } from './claudeMetaScanner.js'
 
 const app = express()
 const server = createServer(app)
@@ -146,11 +147,16 @@ function sendInitialState(ws: WebSocket): void {
   const savedLayout = readSavedLayout()
   sendToClient(ws, { type: 'layoutLoaded', layout: savedLayout || cachedLayout })
 
-  // Send existing agents
+  // Send existing agents with project names
   const agentIds = getActiveAgentIds()
   if (agentIds.length > 0) {
-    sendToClient(ws, { type: 'existingAgents', agents: agentIds })
+    const projectNames = getAgentProjectNames()
+    sendToClient(ws, { type: 'existingAgents', agents: agentIds, projectNames })
   }
+
+  // Send Claude meta (hooks, skills, commands, infrastructure)
+  const meta = getClaudeMeta()
+  sendToClient(ws, { type: 'claudeMetaLoaded', hooks: meta.hooks, commands: meta.commands, skills: meta.skills, infrastructure: meta.infrastructure })
 }
 
 function handleClientMessage(ws: WebSocket, msg: Record<string, unknown>): void {
@@ -187,3 +193,6 @@ server.listen(PORT, () => {
 
 // Start the session scanner
 startScanner(broadcastToAll)
+
+// Start the meta scanner (hooks, skills, commands)
+startMetaScanner()

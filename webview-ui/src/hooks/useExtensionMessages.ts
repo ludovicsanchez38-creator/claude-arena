@@ -39,16 +39,78 @@ export interface WorkspaceFolder {
   path: string
 }
 
+export interface HookDefinition {
+  event: string
+  matcher: string
+  command: string
+  async: boolean
+}
+
+export interface PluginHooks {
+  pluginName: string
+  hooks: HookDefinition[]
+}
+
+export interface CommandDefinition {
+  name: string
+  description: string
+}
+
+export interface SkillDefinition {
+  name: string
+  description: string
+}
+
+export interface InfraAgent {
+  name: string
+  host: string
+  ip: string
+  model: string | null
+  channels: string[]
+  workspace: string
+  status: string
+}
+
+export interface InfraService {
+  name: string
+  host: string
+  ip: string
+  type: string
+  description: string
+}
+
+export interface InfraCron {
+  schedule: string
+  command: string
+  host: string
+  description: string
+}
+
+export interface Infrastructure {
+  agents: InfraAgent[]
+  services: InfraService[]
+  crons: InfraCron[]
+}
+
+export interface ClaudeMeta {
+  hooks: PluginHooks[]
+  commands: CommandDefinition[]
+  skills: SkillDefinition[]
+  infrastructure: Infrastructure
+}
+
 export interface ExtensionMessageState {
   agents: number[]
   selectedAgent: number | null
   agentTools: Record<number, ToolActivity[]>
   agentStatuses: Record<number, string>
+  agentProjectNames: Record<number, string>
   subagentTools: Record<number, Record<string, ToolActivity[]>>
   subagentCharacters: SubagentCharacter[]
   layoutReady: boolean
   loadedAssets?: { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> }
   workspaceFolders: WorkspaceFolder[]
+  claudeMeta: ClaudeMeta | null
 }
 
 export function useExtensionMessages(
@@ -60,11 +122,13 @@ export function useExtensionMessages(
   const [selectedAgent, setSelectedAgent] = useState<number | null>(null)
   const [agentTools, setAgentTools] = useState<Record<number, ToolActivity[]>>({})
   const [agentStatuses, setAgentStatuses] = useState<Record<number, string>>({})
+  const [agentProjectNames, setAgentProjectNames] = useState<Record<number, string>>({})
   const [subagentTools, setSubagentTools] = useState<Record<number, Record<string, ToolActivity[]>>>({})
   const [subagentCharacters, setSubagentCharacters] = useState<SubagentCharacter[]>([])
   const [layoutReady, setLayoutReady] = useState(false)
   const [loadedAssets, setLoadedAssets] = useState<{ catalog: FurnitureAsset[]; sprites: Record<string, string[][]> } | undefined>()
   const [workspaceFolders, setWorkspaceFolders] = useState<WorkspaceFolder[]>([])
+  const [claudeMeta, setClaudeMeta] = useState<ClaudeMeta | null>(null)
 
   const layoutReadyRef = useRef(false)
 
@@ -96,8 +160,12 @@ export function useExtensionMessages(
       } else if (msg.type === 'agentCreated') {
         const id = msg.id as number
         const folderName = msg.folderName as string | undefined
+        const projectName = msg.projectName as string | undefined
         setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]))
         setSelectedAgent(id)
+        if (projectName) {
+          setAgentProjectNames((prev) => ({ ...prev, [id]: projectName }))
+        }
         if (layoutReadyRef.current) {
           os.addAgent(id, undefined, undefined, undefined, undefined, folderName)
         } else {
@@ -132,6 +200,10 @@ export function useExtensionMessages(
         const incoming = msg.agents as number[]
         const meta = (msg.agentMeta || {}) as Record<number, { palette?: number; hueShift?: number; seatId?: string }>
         const folderNames = (msg.folderNames || {}) as Record<number, string>
+        const projectNames = (msg.projectNames || {}) as Record<number, string>
+        if (Object.keys(projectNames).length > 0) {
+          setAgentProjectNames((prev) => ({ ...prev, ...projectNames }))
+        }
         for (const id of incoming) {
           const m = meta[id]
           if (layoutReadyRef.current) {
@@ -319,6 +391,12 @@ export function useExtensionMessages(
       } else if (msg.type === 'settingsLoaded') {
         const soundOn = msg.soundEnabled as boolean
         setSoundEnabled(soundOn)
+      } else if (msg.type === 'claudeMetaLoaded') {
+        const hooks = msg.hooks as PluginHooks[]
+        const commands = msg.commands as CommandDefinition[]
+        const skills = msg.skills as SkillDefinition[]
+        const infrastructure = msg.infrastructure as Infrastructure
+        setClaudeMeta({ hooks, commands, skills, infrastructure })
       } else if (msg.type === 'furnitureAssetsLoaded') {
         try {
           const catalog = msg.catalog as FurnitureAsset[]
@@ -335,5 +413,5 @@ export function useExtensionMessages(
     return () => window.removeEventListener('message', handler)
   }, [getOfficeState])
 
-  return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders }
+  return { agents, selectedAgent, agentTools, agentStatuses, agentProjectNames, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, claudeMeta }
 }

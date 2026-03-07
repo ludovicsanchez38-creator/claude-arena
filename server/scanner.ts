@@ -53,7 +53,7 @@ export function getActiveAgentIds(): number[] {
 }
 
 /** Extract a human-readable project name from the project hash directory.
- *  Hash format: path with / replaced by -, e.g. "-Users-synoptia-Desktop-Dev-claude-arena" */
+ *  Hash format: path with / replaced by -, e.g. "-Users-john-projects-my-app" */
 function projectNameFromHash(hash: string): string {
   const segments = hash.split('-').filter(Boolean)
   if (segments.length === 0) return '/'

@@ -1,6 +1,6 @@
 # Claude Arena
 
-Dashboard pixel art qui affiche en temps réel les agents Claude Code actifs sous forme de personnages animés dans un bureau virtuel.
+Dashboard temps réel qui affiche les sessions Claude Code actives sous forme de personnages animés dans un bureau pixel art, avec un panneau de controle complet (skills, commandes, agents, services, crons).
 
 Fork standalone de [pixel-agents](https://github.com/pablodelucca/pixel-agents) (extension VS Code) transformé en app web autonome - pas besoin de VS Code.
 
@@ -13,6 +13,7 @@ Fork standalone de [pixel-agents](https://github.com/pablodelucca/pixel-agents) 
 3. Il parse le transcript en temps réel (outils, subagents, permissions)
 4. Le frontend affiche un personnage pixel art par session active
 5. Les personnages bougent, tapent, lisent selon l'activité de l'agent
+6. Le panneau Info affiche skills, commandes, hooks, agents, services et crons
 
 Aucune modification de Claude Code n'est nécessaire - c'est purement observationnel.
 
@@ -54,6 +55,7 @@ Puis ouvrir **http://localhost:3847** dans un navigateur.
 
 ## Fonctionnalités
 
+### Bureau pixel art
 - **Détection automatique** des sessions Claude Code actives via le filesystem
 - **Personnages pixel art** animés (6 skins, marche/frappe/lecture)
 - **Subagents** : les agents Task/Agent apparaissent comme des personnages enfants avec effet Matrix au spawn/despawn
@@ -62,6 +64,37 @@ Puis ouvrir **http://localhost:3847** dans un navigateur.
 - **Son** : notification quand un agent termine son tour
 - **Zoom** : Ctrl+Scroll ou boutons +/-
 - **Layout persisté** dans `~/.claude-arena/layout.json`
+
+### Panneau Info (7 onglets)
+- **Live** : sessions Claude Code actives en temps réel, avec nom du projet et statut (actif/en attente)
+- **Skills** : tous les skills détectés dans `~/.claude/skills/` avec description et bouton copier
+- **Commandes** : toutes les commandes détectées dans `~/.claude/commands/`
+- **Bots** : agents IA configurés (depuis `~/.claude-arena/infrastructure.json`)
+- **Services** : services systemd/docker (depuis le même fichier)
+- **Crons** : taches planifiées (config + crontab locale)
+- **Hooks** : hooks de plugins détectés dans `~/.claude/plugins/cache/`
+
+Le scanner meta tourne toutes les 30s. Le scanner de sessions toutes les 1.5s.
+
+### Architecture multi-theme
+- Moteur de rendu abstrait derrière une interface `RenderTheme`
+- Theme actuel : Pixel Classic (le rendu original)
+- Selecteur de theme dans Settings (persiste dans localStorage)
+- Prêt pour ajouter de nouveaux themes (glass, neon, etc.)
+
+### Noms de sessions personnalisés
+Le `/rename` de Claude Code ne persiste pas dans les fichiers. Pour nommer vos sessions dans Arena, créez `~/.claude-arena/session-names.json` :
+```json
+{
+  "mon-slug-de-session": "Mon Projet",
+  "uuid-de-session": "Autre Projet"
+}
+```
+Le slug se trouve dans les fichiers JSONL de `~/.claude/projects/`.
+
+### Securite
+
+Claude Arena lit en temps reel vos sessions Claude Code, votre crontab locale, et le contenu de `~/.claude-arena/infrastructure.json`. Ces données ne sont transmises que via WebSocket sur localhost. Ne jamais exposer le port 3847 sur un reseau public sans authentification.
 
 ### Assets du bureau
 
@@ -79,7 +112,7 @@ Les personnages sont basés sur le travail de [JIK-A-4, Metro City](https://jik-
 |-----------|--------|---------|
 | Port HTTP/WS | `3847` | `server/constants.ts` |
 | Intervalle de scan | `1.5s` | `server/constants.ts` |
-| Session considérée inactive | `120s` sans écriture JSONL | `server/constants.ts` |
+| Session considérée inactive | `30min` sans écriture JSONL | `server/constants.ts` |
 | Timer permission | `7s` sans données | `server/constants.ts` |
 | Timer idle (texte seul) | `5s` sans données | `server/constants.ts` |
 | Fichier layout | `~/.claude-arena/layout.json` | `server/constants.ts` |

@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# Claude Arena Launcher
+PROJECT_DIR="/Users/synoptia/Desktop/Dev Synoptia/claude-arena"
+PORT=3847
+URL="http://localhost:$PORT"
+
+# Vérifier si le serveur tourne déjà et sert du contenu
+if curl -s "http://localhost:$PORT" | grep -q "html" 2>/dev/null; then
+    open "$URL"
+    exit 0
+fi
+
+# Tuer un éventuel processus zombie sur le port
+lsof -ti :$PORT | xargs kill -9 2>/dev/null
+
+# Charger l'environnement Node.js (nvm)
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+export PATH="/Users/synoptia/.nvm/versions/node/v22.19.0/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+cd "$PROJECT_DIR"
+
+# Builder le frontend (pour que le serveur serve les fichiers statiques)
+npm run build:webview 2>&1
+
+# Lancer le serveur (tsx, pas besoin de compiler le TypeScript serveur)
+npx tsx server/index.ts &
+SERVER_PID=$!
+
+# Attendre que le serveur soit prêt (max 30s)
+for i in $(seq 1 60); do
+    if curl -s "http://localhost:$PORT" | grep -q "html" 2>/dev/null; then
+        open "$URL"
+        wait $SERVER_PID
+        exit 0
+    fi
+    sleep 0.5
+done
+
+# Timeout - ouvrir quand même
+open "$URL"
+wait $SERVER_PID

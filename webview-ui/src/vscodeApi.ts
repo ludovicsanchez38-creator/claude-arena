@@ -6,11 +6,35 @@ const WS_URL = `ws://${window.location.hostname}:${window.location.port || '3847
 
 let ws: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let fetchingToken = false
 
-function connect(): void {
+// Le serveur exige un jeton de session, tiré à chaque démarrage. Il est relu
+// avant chaque connexion : après un redémarrage du serveur, la page se
+// reconnecte d'elle-même avec le nouveau jeton.
+async function fetchSessionToken(): Promise<string | null> {
+  try {
+    const res = await fetch('./api/session', { cache: 'no-store' })
+    if (!res.ok) return null
+    const body = (await res.json()) as { token?: unknown }
+    return typeof body.token === 'string' ? body.token : null
+  } catch {
+    return null
+  }
+}
+
+async function connect(): Promise<void> {
+  if (fetchingToken) return
   if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return
 
-  ws = new WebSocket(WS_URL)
+  fetchingToken = true
+  const token = await fetchSessionToken()
+  fetchingToken = false
+  if (!token) {
+    scheduleReconnect()
+    return
+  }
+
+  ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}`)
 
   ws.onopen = () => {
     console.log('[WS] Connected to server')
@@ -44,12 +68,12 @@ function scheduleReconnect(): void {
   if (reconnectTimer) return
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null
-    connect()
+    void connect()
   }, 2000)
 }
 
 // Start connection immediately
-connect()
+void connect()
 
 // VS Code API shim
 export const vscode = {

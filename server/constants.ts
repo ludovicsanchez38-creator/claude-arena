@@ -25,5 +25,9 @@ export const CHAR_COUNT = 6
 
 // ── Server ──────────────────────────────────────────────────
 export const PORT = 3847
+/** Écoute en local seulement : aucune autre machine du réseau ne peut se connecter. */
+export const HOST = '127.0.0.1'
+/** Port du serveur Vite en développement (npm run dev), seule autre origine acceptée. */
+export const DEV_PORT = 5173
 export const LAYOUT_FILE_DIR = '.claude-arena'
 export const LAYOUT_FILE_NAME = 'layout.json'

@@ -4,6 +4,8 @@ import { WebSocketServer, WebSocket } from 'ws'
 import * as path from 'path'
 import * as fs from 'fs'
 import * as os from 'os'
+import { randomBytes, timingSafeEqual } from 'crypto'
+import type { IncomingMessage } from 'http'
 import type { ServerMessage } from './types.js'
 import { startScanner, getActiveAgentIds, getAgentProjectNames } from './scanner.js'
 import {
@@ -13,12 +15,79 @@ import {
   loadWallTiles,
   loadFurnitureAssets,
 } from './assetLoader.js'
-import { PORT, LAYOUT_FILE_DIR, LAYOUT_FILE_NAME } from './constants.js'
+import { PORT, HOST, DEV_PORT, LAYOUT_FILE_DIR, LAYOUT_FILE_NAME } from './constants.js'
 import { startMetaScanner, getClaudeMeta } from './claudeMetaScanner.js'
+
+// ── Sécurité ────────────────────────────────────────────────
+// Le serveur expose l'activité des sessions Claude Code et la crontab locale.
+// Trois verrous : écoute sur 127.0.0.1 (voir server.listen), origine locale
+// obligatoire pour le WebSocket, jeton de session tiré à chaque démarrage.
+const SESSION_TOKEN = randomBytes(32).toString('hex')
+
+// Origines locales de l'outil : la page servie par ce serveur, et le serveur
+// Vite en développement (npm run dev), qui relaie /ws et /api vers ce serveur.
+const ALLOWED_ORIGINS = new Set(
+  [PORT, DEV_PORT].flatMap((port) => [`http://127.0.0.1:${port}`, `http://localhost:${port}`]),
+)
+
+/** En-tête Host local seulement : bloque une page qui ferait pointer son propre nom de domaine vers 127.0.0.1. */
+function isLocalHost(host: string | undefined): boolean {
+  if (!host) return false
+  try {
+    const hostname = new URL(`http://${host}`).hostname
+    return hostname === '127.0.0.1' || hostname === 'localhost'
+  } catch {
+    return false
+  }
+}
+
+function isSessionToken(candidate: string | null): boolean {
+  if (!candidate) return false
+  const expected = Buffer.from(SESSION_TOKEN)
+  const received = Buffer.from(candidate)
+  return received.length === expected.length && timingSafeEqual(received, expected)
+}
+
+function verifyWebSocketClient(
+  info: { origin: string; req: IncomingMessage },
+  done: (result: boolean, code?: number, message?: string) => void,
+): void {
+  if (!ALLOWED_ORIGINS.has(info.origin) || !isLocalHost(info.req.headers.host)) {
+    console.warn(
+      `[WS] Connexion refusée : origine ou hôte non locaux (origine ${info.origin || 'absente'}, hôte ${info.req.headers.host || 'absent'})`,
+    )
+    done(false, 403, 'Forbidden')
+    return
+  }
+  const token = new URL(info.req.url ?? '/', 'http://127.0.0.1').searchParams.get('token')
+  if (!isSessionToken(token)) {
+    console.warn('[WS] Connexion refusée : jeton de session absent ou invalide')
+    done(false, 401, 'Unauthorized')
+    return
+  }
+  done(true)
+}
 
 const app = express()
 const server = createServer(app)
-const wss = new WebSocketServer({ server, path: '/ws' })
+const wss = new WebSocketServer({ server, path: '/ws', verifyClient: verifyWebSocketClient })
+
+// Jeton de session, lu par la page de l'outil avant d'ouvrir le WebSocket.
+// Pas d'en-tête CORS : une page d'une autre origine ne peut pas lire la réponse.
+app.get('/api/session', (req, res) => {
+  const origin = req.get('origin')
+  const fetchSite = req.get('sec-fetch-site')
+  if (
+    !isLocalHost(req.get('host')) ||
+    (origin !== undefined && !ALLOWED_ORIGINS.has(origin)) ||
+    (fetchSite !== undefined && fetchSite !== 'same-origin' && fetchSite !== 'none')
+  ) {
+    res.status(403).end()
+    return
+  }
+  res.set('Cache-Control', 'no-store')
+  res.json({ token: SESSION_TOKEN })
+})
 
 // ── Assets ──────────────────────────────────────────────────
 // Assets are in webview-ui/public/assets/ (dev) or dist/webview/assets/ (prod)
@@ -180,7 +249,7 @@ if (fs.existsSync(distWebview)) {
 }
 
 // ── Start ───────────────────────────────────────────────────
-server.listen(PORT, () => {
+server.listen(PORT, HOST, () => {
   console.log(`
   ╔══════════════════════════════════════╗
   ║         CLAUDE ARENA v1.0.0         ║

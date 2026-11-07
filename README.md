@@ -94,7 +94,13 @@ Le slug se trouve dans les fichiers JSONL de `~/.claude/projects/`.
 
 ### Sécurité
 
-Claude Arena lit en temps réel vos sessions Claude Code, votre crontab locale, et le contenu de `~/.claude-arena/infrastructure.json`. Ces données ne sont transmises que via WebSocket sur localhost. Ne jamais exposer le port 3847 sur un réseau public sans authentification.
+Claude Arena lit en temps réel vos sessions Claude Code, votre crontab locale, et le contenu de `~/.claude-arena/infrastructure.json`. Trois verrous protègent ces données :
+
+- **Écoute locale** : le serveur n'écoute que sur `127.0.0.1`. Une autre machine du réseau ne peut pas s'y connecter.
+- **Origine contrôlée** : le WebSocket refuse toute connexion dont l'en-tête `Origin` n'est pas l'adresse locale de l'outil (`http://localhost:3847` ou `http://127.0.0.1:3847`, et `:5173` pour le serveur Vite en mode développement). Une page web ouverte dans votre navigateur ne peut donc pas lire votre activité.
+- **Jeton de session** : un jeton tiré au hasard à chaque démarrage du serveur est exigé pour ouvrir le WebSocket. La page servie par l'outil le lit auprès du serveur (`/api/session`, sans en-tête CORS, en-tête `Host` local exigé) ; une page d'une autre origine ne peut pas le lire.
+
+L'outil n'a pas de comptes utilisateurs : n'exposez jamais le port 3847 sur un réseau (tunnel, reverse proxy, redirection de port).
 
 ### Assets du bureau
 
@@ -110,6 +116,7 @@ Les personnages sont basés sur le travail de [JIK-A-4, Metro City](https://jik-
 
 | Paramètre | Valeur | Fichier |
 |-----------|--------|---------|
+| Adresse d'écoute | `127.0.0.1` | `server/constants.ts` |
 | Port HTTP/WS | `3847` | `server/constants.ts` |
 | Intervalle de scan | `1.5s` | `server/constants.ts` |
 | Session considérée inactive | `30min` sans écriture JSONL | `server/constants.ts` |

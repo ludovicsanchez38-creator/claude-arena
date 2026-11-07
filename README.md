@@ -1,6 +1,6 @@
 # Claude Arena
 
-Dashboard temps réel qui affiche les sessions Claude Code actives sous forme de personnages animés dans un bureau pixel art, avec un panneau de controle complet (skills, commandes, agents, services, crons).
+Dashboard temps réel qui affiche les sessions Claude Code actives sous forme de personnages animés dans un bureau pixel art, avec un panneau de contrôle complet (skills, commandes, agents, services, crons).
 
 Fork standalone de [pixel-agents](https://github.com/pablodelucca/pixel-agents) (extension VS Code) transformé en app web autonome - pas besoin de VS Code.
 
@@ -71,7 +71,7 @@ Puis ouvrir **http://localhost:3847** dans un navigateur.
 - **Commandes** : toutes les commandes détectées dans `~/.claude/commands/`
 - **Bots** : agents IA configurés (depuis `~/.claude-arena/infrastructure.json`)
 - **Services** : services systemd/docker (depuis le même fichier)
-- **Crons** : taches planifiées (config + crontab locale)
+- **Crons** : tâches planifiées (config + crontab locale)
 - **Hooks** : hooks de plugins détectés dans `~/.claude/plugins/cache/`
 
 Le scanner meta tourne toutes les 30s. Le scanner de sessions toutes les 1.5s.
@@ -79,7 +79,7 @@ Le scanner meta tourne toutes les 30s. Le scanner de sessions toutes les 1.5s.
 ### Architecture multi-theme
 - Moteur de rendu abstrait derrière une interface `RenderTheme`
 - Theme actuel : Pixel Classic (le rendu original)
-- Selecteur de theme dans Settings (persiste dans localStorage)
+- Sélecteur de thème dans Settings (persiste dans localStorage)
 - Prêt pour ajouter de nouveaux themes (glass, neon, etc.)
 
 ### Noms de sessions personnalisés
@@ -92,9 +92,9 @@ Le `/rename` de Claude Code ne persiste pas dans les fichiers. Pour nommer vos s
 ```
 Le slug se trouve dans les fichiers JSONL de `~/.claude/projects/`.
 
-### Securite
+### Sécurité
 
-Claude Arena lit en temps reel vos sessions Claude Code, votre crontab locale, et le contenu de `~/.claude-arena/infrastructure.json`. Ces données ne sont transmises que via WebSocket sur localhost. Ne jamais exposer le port 3847 sur un reseau public sans authentification.
+Claude Arena lit en temps réel vos sessions Claude Code, votre crontab locale, et le contenu de `~/.claude-arena/infrastructure.json`. Ces données ne sont transmises que via WebSocket sur localhost. Ne jamais exposer le port 3847 sur un réseau public sans authentification.
 
 ### Assets du bureau
 
@@ -132,7 +132,7 @@ Les personnages sont basés sur le travail de [JIK-A-4, Metro City](https://jik-
 
 - **Backend** : Node.js, Express, ws, pngjs, TypeScript
 - **Frontend** : React 19, Canvas 2D, Vite, TypeScript
-- **Rendu** : pixel-perfect a zoom entier, z-sort, BFS pathfinding
+- **Rendu** : pixel-perfect à zoom entier, z-sort, BFS pathfinding
 - **Communication** : WebSocket (`/ws`) - même protocole de messages que pixel-agents
 
 ## Origine
